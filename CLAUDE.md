@@ -12,6 +12,7 @@ Needs Node 20.6+ and a local PostgreSQL.
 
 ```
 npm run setup            # writes .env with fresh secrets, creates the DB, loads the schema (add `-- --demo` for sample posts)
+npm run db:init          # reload the schema files into an existing DB; `npm run db:demo` loads demo posts
 npm run dev              # Next.js on http://localhost:3000. Use exactly this origin, not 127.0.0.1, or writes fail with "Bad origin"
 npm run ws               # realtime server (port WS_PORT, default 4000), in a second terminal
 npm run admin -- you@example.com   # promote an existing account to admin
@@ -24,6 +25,7 @@ npm run smoke            # quick curl check of the API
 ```
 
 - `test:api` and `test:ui` are plain scripts, not a test framework. They need `npm run dev` running and a loaded database (`test:api` also needs `npm run ws`). They read `.env` themselves, create real users, and print `ok`/`FAIL` lines.
+- `test:ui` is timing-sensitive and sometimes fails a different check on each run. Run it again before treating a failure as a regression.
 - Signup is rate limited to 5 per hour per IP, and the limiter is in memory (`lib/rate.ts`). Restart `npm run dev` between `test:api` runs.
 - Don't run `npm run build` while `npm run dev` is running from the same checkout. Both write to `.next` and corrupt it.
 
@@ -33,14 +35,14 @@ npm run smoke            # quick curl check of the API
 - `public/api.js`: auth, wall, threads and replies, reactions, requests, reports, help.
 - `public/api2.js`: messages and realtime, journal, journey, notifications, admin and moderation, profile, uploads, search, push.
 
-The override pattern is `const wall0 = wall; wall = async function () { … api … }`, falling back to `wall0()` (sample data) when the API fails. Real posts are mapped into the prototype's post shape (`{id, who, text, mood, cls, care, re, …}`) and stored in `st.api[id]`. If a UI value looks wrong, check that mapping first, because missing API fields default to placeholders. The scripts are minified-style single lines, so search them with grep rather than reading them top to bottom.
+The override pattern is `const wall0 = wall; wall = async function () { … api … }`, falling back to `wall0()` (sample data) when the API fails. Real posts are mapped into the prototype's post shape (`{id, who, text, mood, cls, care, re, …}`) and stored in `st.api[id]`. If a UI value looks wrong, check that mapping first, because missing API fields default to placeholders. Also check that something overrides the part of the page at all: anything `app.html` renders from `POSTS` stays sample data unless `api.js`/`api2.js` replaces it. For example, the home "Someone's feeling today" card (`today()`, `#today`) is redrawn by the `wall` override. Real posts leave `care` undefined, and `sticker()` then hides the 💙 count, because reaction counts aren't public. The scripts are minified-style single lines, so search them with grep rather than reading them top to bottom. Each is wrapped in an IIFE with its own helpers, and the same names mean different things: in `api.js`, `me` is the signed-in user object or `null`, while in `api2.js` `me()` is a function that reads `window.__me`.
 
 **Route handlers** are wrapped in `handler()` from `lib/http.ts`. It does a same-origin (CSRF) check on writes against `APP_ORIGIN`, session auth from the `sid` cookie (`lib/session.ts`), suspension blocking, per-user rate limiting and optional `staff: "moderator" | "admin"`. Request bodies are validated with zod. Public endpoints (`/api/wall`, `/api/search`, `GET /api/posts`) skip `handler()` and query directly with `q()` from `lib/db.ts`.
 
 **Privacy invariants enforced in SQL. Keep them when editing queries:**
 - Never select `author_id` or other user ids into public responses. Author display is computed in SQL (`CASE p.identity WHEN 'anonymous' THEN 'Anonymous' …`).
 - Public content filters on `visibility='public' AND mod_status='approved' AND deleted_at IS NULL`. Comments likewise need `mod_status='approved' AND deleted_at IS NULL`, and counts should use the same filter.
-- Reaction counts are intentionally not exposed publicly.
+- Reaction counts are intentionally not exposed publicly. `GET /api/posts/[id]/react` and `/save` return only the caller's own reactions and saved state.
 - Respect `blocks` in both directions where relevant.
 - Minors and adults can't open private chats. This is checked in code (`lib/safety.ts`) and by a database trigger.
 - Messages and journal entries are AES-256-GCM encrypted via `seal`/`open` in `lib/crypto.ts`.
