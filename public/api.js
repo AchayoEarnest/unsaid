@@ -20,6 +20,10 @@ if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch
 const wall0=wall;
 wall=async function(){try{const d=await api("/api/wall");if(!d.items.length)return wall0();st.api={};const l=d.items.map((p,i)=>{const x={id:p.id,who:p.author,text:p.body,mood:p.mood&&MOODS[p.mood]?p.mood:"Need someone",topic:"Life",cls:CLS[i%8],age:"",care:0,re:0,cw:!!p.content_warning,image:p.image};st.api[p.id]=x;return x});
 $("#wall").innerHTML=l.map(sticker).join("")}catch{wall0()}};
+// api.js can load after the inline script's own setTimeout already fired the sample wall() (a slow network can
+// make the script tag itself take longer than that timer). Render the real wall as soon as we're ready, not just
+// on whatever schedule the page guessed before we existed.
+if(typeof st!=="undefined"&&st.page==="home"&&document.getElementById("wall"))wall();
 /* ---- thread ---- */
 const thread0=thread;
 thread=function(id,reply){const p=st.api&&st.api[id];if(!p)return thread0(id,reply);

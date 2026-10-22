@@ -6,11 +6,21 @@ Next.js route handlers + PostgreSQL + a small WebSocket server. `public/prototyp
 A complete Next.js project. `/` loads the UI (`public/app.html`), and two scripts connect it to the real API: `public/api.js` (sign in/up/out, forgot password, wall, posting, thread replies, reactions, private requests, reports, help) and `public/api2.js` (messages with realtime, journal, journey, notifications, admin and moderation, profile and account tools, image upload, search, push). If the API isn't reachable, the wall falls back to sample data.
 
 ## Status: tested end to end in a clean environment
-Verified here against PostgreSQL 16, a running Next.js dev server and the realtime server:
+Verified here against PostgreSQL 16, a running Next.js dev server and the realtime server, from a fresh
+`npm run setup -- --demo`:
 - `npx tsc --noEmit`: no errors.
 - All SQL files load cleanly, and all 113 queries in the API code prepare against the schema.
+- `npm run build`: production build succeeds (don't run this alongside a live `npm run dev` against the
+  same checkout — they both write to `.next` and will corrupt each other's build output; use separate
+  checkouts/worktrees, or stop `dev` first).
 - `npm run test:api`: 64 checks pass (privacy, moderation, teen protection, encryption, realtime, uploads, deletion).
-- `npm run test:ui`: 24 checks pass (the real UI loaded in a simulated browser: wall, threads, every screen, posting, journal, check-in, notifications, help).
+- `npm run test:ui`: 24 checks pass, repeatedly, against the real UI loaded in a simulated browser (wall,
+  threads, every screen, posting, journal, check-in, notifications, help). Two real bugs found and fixed
+  while verifying this: the home wall and reaction picker could render stale sample data on a slow
+  connection (api.js now renders the real wall as soon as it loads, instead of trusting a hardcoded
+  timer), and the community-mood and discover-search screens could get overwritten by a late-arriving
+  response for a screen you'd already left. `scripts/make-admin.sh` also used to report success even for
+  an email with no account; it now checks first and exits non-zero when there's nothing to promote.
 - `npm test`: 6 unit tests pass.
 
 Not covered: a real browser on a real phone, Google sign-in (needs your Google keys), real email sending, push delivery, S3 storage, load, and a security review.

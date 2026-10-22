@@ -37,9 +37,10 @@ w.go("admin"); w.atab("log"); ok(await until(() => txt().includes("can’t be ed
 // journal save through the UI
 w.go("journal"); await until(() => $("#je")); $("#je").value = "Wrote this from the UI test"; $('[data-j="save"]').click(); await wait(1500);
 ok(txt().includes("Wrote this from the UI test"), "journal entry saved and listed");
-// posting through the share form
-w.share(); $("#tx").value = "Posting from the UI test, feeling hopeful."; $('#mo [data-k="Hopeful"]').click(); $("#go").click(); await wait(200); $("#y").click(); await until(() => false, 2000);
-const posted = (await db.query("SELECT count(*) FROM posts WHERE body LIKE 'Posting from the UI test%'")).rows[0].count; ok(posted === "1", "share form saves a post to the database");
+// posting through the share form (unique body per run so reruns against the same database don't collide)
+const shareBody = `Posting from the UI test ${Date.now()}, feeling hopeful.`;
+w.share(); $("#tx").value = shareBody; $('#mo [data-k="Hopeful"]').click(); $("#go").click(); await wait(200); $("#y").click(); await until(() => false, 2000);
+const posted = (await db.query("SELECT count(*) FROM posts WHERE body=$1", [shareBody])).rows[0].count; ok(posted === "1", "share form saves a post to the database");
 // check-in saves to the journal
 w.checkin(); $('[data-k="Anxious"]').click(); await wait(300); $("#cj").click(); await wait(1200);
 ok(+(await db.query("SELECT count(*) FROM journal_entries WHERE user_id=(SELECT id FROM users WHERE email=$1)", [email])).rows[0].count >= 2, "check-in saves to the private journal");
