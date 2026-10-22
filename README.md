@@ -5,19 +5,28 @@ Next.js route handlers + PostgreSQL + a small WebSocket server. `public/prototyp
 ## What this folder is
 A complete Next.js project. `/` loads the UI (`public/app.html`), and two scripts connect it to the real API: `public/api.js` (sign in/up/out, forgot password, wall, posting, thread replies, reactions, private requests, reports, help) and `public/api2.js` (messages with realtime, journal, journey, notifications, admin and moderation, profile and account tools, image upload, search, push). If the API isn't reachable, the wall falls back to sample data.
 
-## Status: written, partly tested
-- **Tested:** `tests/safety.test.ts` passes (6 tests: risk detection, harmful-reply block, minor/adult rule, anonymous masking, moderation screen, encryption round-trip). Run `npm test`.
-- **Not yet run:** the SQL, API routes and WebSocket server have never run against a real database. A full `tsc` pass did not complete because the dependency install timed out here. Expect some type and SQL fixes on first run.
+## Status: tested end to end in a clean environment
+Verified here against PostgreSQL 16, a running Next.js dev server and the realtime server:
+- `npx tsc --noEmit`: no errors.
+- All SQL files load cleanly, and all 113 queries in the API code prepare against the schema.
+- `npm run test:api`: 64 checks pass (privacy, moderation, teen protection, encryption, realtime, uploads, deletion).
+- `npm run test:ui`: 24 checks pass (the real UI loaded in a simulated browser: wall, threads, every screen, posting, journal, check-in, notifications, help).
+- `npm test`: 6 unit tests pass.
+
+Not covered: a real browser on a real phone, Google sign-in (needs your Google keys), real email sending, push delivery, S3 storage, load, and a security review.
 
 ## Quick start
+Needs Node 20.6+ and PostgreSQL running locally (macOS: `brew install postgresql@16 && brew services start postgresql@16`).
 ```
-cp .env.example .env     # DATABASE_URL, APP_ORIGIN, DATA_KEY (openssl rand -base64 32)
 npm install
-npm run db:init   # loads schema, sessions, age flag, extras, seed data
-npm run dev              # app on :3000
-npm run ws               # realtime on :4000
+npm run setup            # creates .env with fresh secrets, creates the database, loads the schema
+npm run setup -- --demo  # optional: also adds demo posts (only needed once)
+npm run dev              # app on http://localhost:3000
+npm run ws               # realtime, in a second terminal
 ```
-Or `docker compose up`. Make a moderator: `INSERT INTO staff VALUES ('<user uuid>','admin');`
+Sign up in the app, then make yourself an admin: `npm run admin -- you@example.com`. Check the API with `npm run smoke`.
+
+If you see `database "<your name>" does not exist`, there is no `.env` yet: run `npm run setup`. Open the app at exactly `http://localhost:3000` (not 127.0.0.1) or sign-in will say "Bad origin".
 
 ## Included
 - **Database:** `db/schema.sql`, `002_sessions.sql`, `003_age_confirmed.sql`, `seed.sql` (teen guard trigger, append-only audit log, help resources by country).

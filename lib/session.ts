@@ -8,7 +8,7 @@ const DAYS = 30;
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString("base64url");
   await q("INSERT INTO sessions (token_hash,user_id,expires_at) VALUES ($1,$2,now()+interval '30 days')", [hash(token), userId]);
-  (await cookies()).set("sid", token, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: DAYS * 86400 });
+  (await cookies()).set("sid", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: DAYS * 86400 });
 }
 
 export async function currentUser() {

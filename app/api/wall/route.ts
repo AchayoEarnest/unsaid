@@ -7,5 +7,6 @@ export async function GET() {
     WHERE p.visibility='public' AND p.mod_status='approved' AND p.deleted_at IS NULL`;
   let rows = await q(`${base} AND p.id > gen_random_uuid() ORDER BY p.id LIMIT 12`);
   if (rows.length < 12) rows = rows.concat(await q(`${base} ORDER BY p.id LIMIT $1`, [12 - rows.length]));
+  const seen = new Set<string>(); rows = rows.filter(r => !seen.has(r.id) && seen.add(r.id)); // no duplicates when the wall is small
   return Response.json({ items: rows }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -4,10 +4,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "db:init": "psql $DATABASE_URL -f db/schema.sql -f db/002_sessions.sql -f db/003_age_confirmed.sql -f db/004_extras.sql -f db/seed.sql",
+    "db:init": "sh scripts/db-init.sh",
     "start": "next start",
     "test": "tsx --test tests/*.test.ts",
-    "ws": "tsx server/ws.ts"
+    "ws": "tsx --env-file=.env server/ws.ts",
+    "db:demo": "sh scripts/demo.sh",
+    "admin": "sh scripts/make-admin.sh",
+    "smoke": "sh scripts/smoke.sh",
+    "test:api": "node tests/api.mjs",
+    "test:ui": "node tests/ui.mjs",
+    "setup": "sh scripts/setup.sh"
   },
   "dependencies": {
     "next": "^15.0.0",
@@ -25,6 +31,9 @@
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.0",
     "tsx": "^4.19.0",
-    "@types/web-push": "^3.6.3"
+    "@types/web-push": "^3.6.3",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^25.0.0"
   }
 }

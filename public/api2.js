@@ -2,14 +2,14 @@
 (()=>{
 const api=window.api,J=JSON.stringify,slug=m=>String(m||"").toLowerCase().replace(/ /g,"_"),me=()=>window.__me;
 const sc=m=>`<div class="card"><h3>Sign in to continue</h3><p>${m}</p><button class="btn" onclick="authModal()">Sign in</button></div>`;
-const fail=(el,e)=>{el.innerHTML=`<p class="err" role="alert">${esc(e.message||"Something went wrong.")}</p>`};
+const fail=(el,e)=>{if(!el)return;el.innerHTML=`<p class="err" role="alert">${esc(e.message||"Something went wrong.")}</p>`};
 const SEV={1:"Low",2:"Medium",3:"High",4:"Urgent"};
 let cfg={},ws=null,cur=null,tt,JE=[];
 api("/api/config").then(c=>{cfg=c}).catch(()=>{});
 /* ---------- realtime ---------- */
 function connect(){if(!cfg.ws||!me()||ws)return;try{ws=new WebSocket(cfg.ws);
 ws.onmessage=e=>{const m=JSON.parse(e.data);
-if(m.type==="message"){if(cur&&cur.id===m.convo&&st.page==="messages")openConvo(cur.id,cur.name);else if(st.page==="messages")loadMessages();else toast("You have a gentle new message.")}
+if(m.type==="message"){if(cur&&cur.id===m.convo&&st.page==="messages")openConvo(cur.id,cur.name);else if(st.page==="messages")loadMessages().catch(()=>{});else toast("You have a gentle new message.")}
 if(m.type==="typing"&&cur&&cur.id===m.convo){const t=$("#typing");if(t){t.textContent=cur.name+" is typing…";clearTimeout(tt);tt=setTimeout(()=>{t.textContent=""},2500)}}};
 ws.onclose=()=>{ws=null;setTimeout(connect,5000)}}catch{ws=null}}
 /* ---------- messages ---------- */
@@ -60,6 +60,8 @@ const share0=share;share=function(){share0();const i=document.getElementById("im
 lab.innerHTML='Add an image (JPEG, PNG or WebP, under 2 MB) <input type="file" id="imf" accept="image/jpeg,image/png,image/webp">';
 document.getElementById("imf").onchange=async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append("file",f);
 try{const r=await fetch("/api/uploads",{method:"POST",body:fd,credentials:"same-origin"}),d=await r.json();if(!r.ok)throw Object.assign(new Error(d.error),{status:r.status});window.__imgId=d.id;toast("Image attached. It appears after a quick review.")}catch(x){if(x.status===401)authModal("Please sign in to add an image.");else toast(x.message||"Couldn’t upload that image.")}}};
+/* ---------- onboarding choices saved to the account ---------- */
+window.onboardDone=()=>{const m=me();if(!m)return;const b={allowRequests:st.set.reqs,topicsOnlyFeed:st.set.fol,hideOnline:st.set.seen};if(st.set.minor!==undefined)b.isMinor=st.set.minor;api("/api/me",{method:"PATCH",body:J(b)}).catch(()=>{})};
 /* ---------- password reset ---------- */
 window.forgot=()=>{const o=modal(`<h2 style="margin-top:0">Reset your password</h2><label for="fe">Email</label><input id="fe" type="text" autocomplete="email"><div id="ferr" class="err" role="alert"></div><p><button class="btn" id="fs">Send reset link</button></p>`);
 o.querySelector("#fs").onclick=async()=>{try{const r=await api("/api/auth/reset",{method:"POST",body:J({email:o.querySelector("#fe").value})});o.remove();toast(r.note)}catch(e){o.querySelector("#ferr").textContent=e.message}}};
@@ -88,5 +90,5 @@ o.querySelector("#dd").onclick=async()=>{try{await api("/api/me/delete",{method:
 }catch(x){if(x.status===401)authModal("Please sign in to continue.");else toast(x.message)}});
 app.addEventListener("change",e=>{const c=e.target;if(st.page!=="profile"||c.type!=="checkbox"||!me())return;const t=c.parentElement.textContent,f=/message requests/i.test(t)?{allowRequests:c.checked}:/topics/i.test(t)?{topicsOnlyFeed:c.checked}:/online/i.test(t)?{hideOnline:c.checked}:null;if(f)api("/api/me",{method:"PATCH",body:J(f)}).catch(x=>toast(x.message))});
 /* ---------- run page loaders after every render ---------- */
-const render0=render;render=function(){render0();if(me()&&!ws)connect();const f={messages:loadMessages,journal:loadJournal,journey:loadJourney,community:loadMood,admin:loadAdmin,profile:profileExtras,discover:searchApi}[st.page];if(f)f()};
+const render0=render;render=function(){render0();if(me()&&!ws)connect();const f={messages:loadMessages,journal:loadJournal,journey:loadJourney,community:loadMood,admin:loadAdmin,profile:profileExtras,discover:searchApi}[st.page];if(f)Promise.resolve().then(f).catch(()=>{})}; /* late responses for a screen you already left are ignored */
 })();
