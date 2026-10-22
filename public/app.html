@@ -77,7 +77,10 @@ table{width:100%;border-collapse:collapse}td,th{padding:9px 6px;border-bottom:1p
 details{border-bottom:1px solid var(--line);padding:12px 0}summary{cursor:pointer;font-weight:700}
 footer{border-top:1px solid var(--line);padding:30px 18px 100px;color:var(--mut);text-align:center}
 .sr{position:absolute;left:-9999px}
-@media(max-width:820px){nav.d{display:none}nav.m{display:flex}.hero{grid-template-columns:1fr;min-height:0}.msgs{grid-template-columns:1fr}.wall{grid-template-columns:1fr;gap:20px}.st{animation:none;min-height:0}.dsk{display:none}}
+html,body{overflow-x:hidden}
+@media(max-width:820px){nav.d{display:none}nav.m{display:flex}.hero{grid-template-columns:1fr;min-height:0}.wall{gap:20px}.st{animation:none;min-height:0}.dsk2{display:none}}
+@media(max-width:680px){.msgs{grid-template-columns:1fr}}
+@media(max-width:480px){header{flex-wrap:wrap;row-gap:8px;padding:8px 14px}header .logo{font-size:19px}header .btn.g.sm{padding:7px 12px;min-height:38px;font-size:13px}main{padding:16px 14px 90px}.hero{min-height:0}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
 <header><button class="logo" onclick="go('home')" aria-label="Unsaid home"><i></i>Unsaid</button>
@@ -99,7 +102,7 @@ const ADV=["I’ve felt exactly like this. You’re not behind. Your journey jus
 const HEAR=["You don’t have to be okay to deserve rest.","Your feelings are valid, even the confusing ones.","Asking for help is a strength.","Small steps still move you forward.","Someone out there is glad you’re here."];
 let st={page:"home",seed:1,filter:null,theme:null,saved:[],journal:[{d:"Oct 14",m:"Anxious",t:"Presentation tomorrow. Heart racing all evening.",tag:"school"},{d:"Oct 16",m:"Healing",t:"Walked home instead of taking the bus. Felt lighter.",tag:"self"},{d:"Oct 19",m:"Hopeful",t:"Talked to a friend. It wasn’t as scary as I thought.",tag:"friends"}],reqs:[{n:"Amani",s:"pending"},{n:"Daniel",s:"pending",a:1}],chat:[["th","Hi, thanks for replying to my post. 🫂"],["me","Of course. I’m here. Take your time."]]};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const rnd=n=>{st.seed=(st.seed*16807+n*13)%2147483647;return st.seed/2147483647};
+const rnd=n=>{if(typeof n!=="number"||!Number.isFinite(n))n=String(n).split("").reduce((a,c)=>(a*31+c.charCodeAt(0))|0,0);st.seed=(st.seed*16807+n*13)%2147483647;if(!Number.isFinite(st.seed))st.seed=1;return st.seed/2147483647};
 function toast(m){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),2400)}
 function theme(){const cur=document.documentElement.dataset.theme||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.dataset.theme=cur=="dark"?"light":"dark"}
 const NAV=[["home","Home","🏠"],["discover","Discover","🧭"],["community","Community","🫶"],["messages","Messages","💬"],["journal","Journal","📓"],["journey","My Journey","🌱"],["profile","Profile","🙂"]];
