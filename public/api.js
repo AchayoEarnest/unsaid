@@ -18,7 +18,7 @@ const hd=document.querySelector("header"),ab=document.createElement("button");ab
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
 /* ---- wall ---- */
 const wall0=wall;
-wall=async function(){try{const d=await api("/api/wall");if(!d.items.length)return wall0();st.api={};const l=d.items.map((p,i)=>{const x={id:p.id,who:p.author,text:p.body,mood:p.mood&&MOODS[p.mood]?p.mood:"Need someone",topic:"Life",cls:CLS[i%8],age:"",care:0,re:0,cw:!!p.content_warning,image:p.image};st.api[p.id]=x;return x});
+wall=async function(){try{const d=await api("/api/wall");if(!d.items.length)return wall0();st.api={};const l=d.items.map((p,i)=>{const x={id:p.id,who:p.author,text:p.body,mood:p.mood&&MOODS[p.mood]?p.mood:"Need someone",topic:"Life",cls:CLS[i%8],age:"",care:0,re:p.replies|0,cw:!!p.content_warning,image:p.image};st.api[p.id]=x;return x});
 $("#wall").innerHTML=l.map(sticker).join("")}catch{wall0()}};
 // api.js can load after the inline script's own setTimeout already fired the sample wall() (a slow network can
 // make the script tag itself take longer than that timer). Render the real wall as soon as we're ready, not just
@@ -31,7 +31,7 @@ const o=modal(`<h2 style="margin-top:0">“${esc(p.text)}”</h2><small>${esc(p.
 <label for="rp">Write a kind reply</label><textarea id="rp" style="min-height:70px"></textarea><div id="re" class="err" role="alert"></div>
 <div class="row"><button class="btn sm" id="rs">Reply</button><button class="btn g sm" id="tp">Talk privately</button><button class="btn g sm" id="rr">Report</button></div><p class="tag">Peer perspectives aren’t professional advice.</p>`);
 const need=e=>{if(e.status===401){o.remove();authModal("Please sign in to do that.")}else o.querySelector("#re").textContent=e.message};
-const load=async()=>{try{const d=await api(`/api/posts/${id}/comments`);o.querySelector("#cl").innerHTML=d.items.length?d.items.map(c=>`<div class="cm"><span class="tag">${c.kind==="advice"?"Peer perspective · advice":"Supportive response"}</span><p style="margin:.3em 0">${esc(c.body)}</p></div>`).join(""):"<p>No replies yet. You could be the first.</p>"}catch(e){o.querySelector("#cl").innerHTML="<p>Sign in to read and join the conversation.</p>"}};load();
+const load=async()=>{try{const d=await api(`/api/posts/${id}/comments`);p.re=d.items.length;document.querySelectorAll(`.st[onclick="thread('${id}')"] .f span:last-child`).forEach(e=>e.textContent=`💙 ${p.care} 💬 ${p.re}`);o.querySelector("#cl").innerHTML=d.items.length?d.items.map(c=>`<div class="cm"><span class="tag">${c.kind==="advice"?"Peer perspective · advice":"Supportive response"}</span><p style="margin:.3em 0">${esc(c.body)}</p></div>`).join(""):"<p>No replies yet. You could be the first.</p>"}catch(e){o.querySelector("#cl").innerHTML="<p>Sign in to read and join the conversation.</p>"}};load();
 o.querySelector(".rx").onclick=async e=>{const b=e.target.closest("[data-r]");if(!b)return;try{await api(`/api/posts/${id}/react`,{method:"PUT",body:J({kind:b.dataset.r})});b.classList.add("on")}catch(x){need(x)}};
 o.querySelector("#rs").onclick=async()=>{const t=o.querySelector("#rp").value.trim();if(!t)return;try{const r=await api(`/api/posts/${id}/comments`,{method:"POST",body:J({body:t})});o.querySelector("#rp").value="";toast(r.status==="live"?"Reply posted":"Thanks. Your reply is being reviewed.");load()}catch(x){need(x)}};
 o.querySelector("#tp").onclick=async()=>{try{const r=await api("/api/requests",{method:"POST",body:J({postId:id})});toast(r.note||"Request sent")}catch(x){need(x)}};

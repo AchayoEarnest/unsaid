@@ -9,7 +9,7 @@ import { screen, reasons } from "@/lib/moderation";
 const FEED = `SELECT p.id, p.body, p.style, p.content_warning, p.created_at,
   CASE p.identity WHEN 'anonymous' THEN 'Anonymous' WHEN 'nickname' THEN pr.nickname ELSE coalesce(pr.display_name,pr.nickname) END AS author,
   coalesce(array_agg(DISTINCT m.slug) FILTER (WHERE m.slug IS NOT NULL),'{}') AS moods,
-  (SELECT count(*) FROM comments c WHERE c.post_id=p.id AND c.deleted_at IS NULL) AS replies
+  (SELECT count(*)::int FROM comments c WHERE c.post_id=p.id AND c.deleted_at IS NULL AND c.mod_status='approved') AS replies
   FROM posts p JOIN profiles pr ON pr.user_id=p.author_id
   LEFT JOIN post_moods pm ON pm.post_id=p.id LEFT JOIN moods m ON m.id=pm.mood_id
   WHERE p.visibility='public' AND p.mod_status='approved' AND p.deleted_at IS NULL`;
