@@ -21,6 +21,7 @@ const md = () => [...d.querySelectorAll(".md")].pop(), closeTop = () => [...d.qu
 await wait(3000);
 ok(txt().includes("Sometimes you don’t need answers"), "home page renders");
 ok(d.querySelectorAll(".st").length > 0 && ev("Object.keys(st.api||{}).length") > 0, "wall shows real posts from the API");
+ok(!!$("#today .st") && ev("!!st.hero") && $("#today .st").getAttribute("onclick").includes(ev("st.hero.id")) && $("#today .st .f").textContent.includes(`💬 ${ev("st.hero.re")}`), "today card shows a real post and reply count");
 $("#wall .st").click(); await wait(1200);
 ok(!!md() && md().textContent.includes("Responses"), "clicking a sticker opens its thread");
 ok(md() && md().querySelectorAll("[data-r]").length === 6, "six supportive reactions shown");

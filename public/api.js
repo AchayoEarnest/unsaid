@@ -19,7 +19,10 @@ if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch
 /* ---- wall ---- */
 const wall0=wall;
 wall=async function(){try{const d=await api("/api/wall");if(!d.items.length)return wall0();st.api={};const l=d.items.map((p,i)=>{const x={id:p.id,who:p.author,text:p.body,mood:p.mood&&MOODS[p.mood]?p.mood:"Need someone",topic:"Life",cls:CLS[i%8],age:"",care:0,re:p.replies|0,cw:!!p.content_warning,image:p.image};st.api[p.id]=x;return x});
-$("#wall").innerHTML=l.map(sticker).join("")}catch{wall0()}};
+$("#wall").innerHTML=l.map(sticker).join("");
+// The hero "Someone's feeling today" card is drawn from sample POSTS by home(). Swap in a real post and keep it
+// stable across reshuffles (refreshing its counts when it comes round again), keeping it in st.api so thread() works.
+if(!st.hero||st.api[st.hero.id])st.hero=st.api[st.hero&&st.hero.id]||l[0];else st.api[st.hero.id]=st.hero;const t=$("#today");if(t)t.innerHTML=today(st.hero)}catch{wall0()}};
 // api.js can load after the inline script's own setTimeout already fired the sample wall() (a slow network can
 // make the script tag itself take longer than that timer). Render the real wall as soon as we're ready, not just
 // on whatever schedule the page guessed before we existed.
