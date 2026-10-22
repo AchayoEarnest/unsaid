@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+
+# next.js build output
+.next/
+out/
+next-env.d.ts
+
+# environment files (keep .env.example)
+.env
+.env.*
+!.env.example
+
+# user uploads (stored on local disk in development)
+uploads/
+
+# logs
+*.log
+npm-debug.log*
+
+# typescript
+*.tsbuildinfo
+
+# test and coverage output
+coverage/
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# temporary files
+*.tmp

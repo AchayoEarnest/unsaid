@@ -1,0 +1,30 @@
+{
+  "name": "unsaid-backend",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "db:init": "psql $DATABASE_URL -f db/schema.sql -f db/002_sessions.sql -f db/003_age_confirmed.sql -f db/004_extras.sql -f db/seed.sql",
+    "start": "next start",
+    "test": "tsx --test tests/*.test.ts",
+    "ws": "tsx server/ws.ts"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "pg": "^8.12.0",
+    "argon2": "^0.41.0",
+    "zod": "^3.23.0",
+    "ws": "^8.18.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/pg": "^8.11.0",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.19.0",
+    "@types/web-push": "^3.6.3"
+  }
+}
