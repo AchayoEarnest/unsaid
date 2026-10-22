@@ -18,7 +18,7 @@ const hd=document.querySelector("header"),ab=document.createElement("button");ab
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
 /* ---- wall ---- */
 const wall0=wall;
-wall=async function(){try{const d=await api("/api/wall");if(!d.items.length)return wall0();st.api={};const l=d.items.map((p,i)=>{const x={id:p.id,who:p.author,text:p.body,mood:p.mood&&MOODS[p.mood]?p.mood:"Need someone",topic:"Life",cls:CLS[i%8],age:"",care:0,re:p.replies|0,cw:!!p.content_warning,image:p.image};st.api[p.id]=x;return x});
+wall=async function(){try{const d=await api("/api/wall");if(!d.items.length)return wall0();st.api={};const l=d.items.map((p,i)=>{const x={id:p.id,who:p.author,text:p.body,mood:p.mood&&MOODS[p.mood]?p.mood:"Need someone",topic:"Life",cls:CLS[i%8],age:"",re:p.replies|0,cw:!!p.content_warning,image:p.image};st.api[p.id]=x;return x});
 $("#wall").innerHTML=l.map(sticker).join("");
 // The hero "Someone's feeling today" card is drawn from sample POSTS by home(). Swap in a real post and keep it
 // stable across reshuffles (refreshing its counts when it comes round again), keeping it in st.api so thread() works.
@@ -27,15 +27,22 @@ if(!st.hero||st.api[st.hero.id])st.hero=st.api[st.hero&&st.hero.id]||l[0];else s
 // make the script tag itself take longer than that timer). Render the real wall as soon as we're ready, not just
 // on whatever schedule the page guessed before we existed.
 if(typeof st!=="undefined"&&st.page==="home"&&document.getElementById("wall"))wall();
+const been0=been;
+been=async function(id,b){if(!(st.api&&st.api[id]))return been0(id,b);b.disabled=true;try{await api(`/api/posts/${id}/react`,{method:"PUT",body:J({kind:"understand"})});b.textContent="Sent 💙";toast("Thank you. Your “I’ve been there” was sent.")}catch(x){b.disabled=false;if(x.status===401)authModal("Please sign in to do that.");else toast(x.message)}};
 /* ---- thread ---- */
 const thread0=thread;
 thread=function(id,reply){const p=st.api&&st.api[id];if(!p)return thread0(id,reply);
-const o=modal(`<h2 style="margin-top:0">“${esc(p.text)}”</h2><small>${esc(p.who)}</small>${p.image?`<img src="/api/uploads/${p.image}" alt="Image shared with this post" style="max-width:100%;border-radius:14px;margin:8px 0">`:""}<div class="rx" style="margin:12px 0">${RK.map((k,i)=>`<button data-r="${k}">${RX[i]}</button>`).join("")}</div><h3>Responses</h3><div id="cl">Loading…</div>
+const o=modal(`<h2 style="margin-top:0">“${esc(p.text)}”</h2><small>${esc(p.who)}</small>${p.image?`<img src="/api/uploads/${p.image}" alt="Image shared with this post" style="max-width:100%;border-radius:14px;margin:8px 0">`:""}<div class="rx" style="margin:12px 0">${RK.map((k,i)=>`<button data-r="${k}" aria-pressed="false">${RX[i]}</button>`).join("")}</div><h3>Responses</h3><div id="cl">Loading…</div>
 <label for="rp">Write a kind reply</label><textarea id="rp" style="min-height:70px"></textarea><div id="re" class="err" role="alert"></div>
-<div class="row"><button class="btn sm" id="rs">Reply</button><button class="btn g sm" id="tp">Talk privately</button><button class="btn g sm" id="rr">Report</button></div><p class="tag">Peer perspectives aren’t professional advice.</p>`);
+<div class="row"><button class="btn sm" id="rs">Reply</button><button class="btn g sm" id="sv" aria-pressed="false">Save</button><button class="btn g sm" id="tp">Talk privately</button><button class="btn g sm" id="rr">Report</button></div><p class="tag">Peer perspectives aren’t professional advice.</p>`);
 const need=e=>{if(e.status===401){o.remove();authModal("Please sign in to do that.")}else o.querySelector("#re").textContent=e.message};
-const load=async()=>{try{const d=await api(`/api/posts/${id}/comments`);p.re=d.items.length;document.querySelectorAll(`.st[onclick="thread('${id}')"] .f span:last-child`).forEach(e=>e.textContent=`💙 ${p.care} 💬 ${p.re}`);o.querySelector("#cl").innerHTML=d.items.length?d.items.map(c=>`<div class="cm"><span class="tag">${c.kind==="advice"?"Peer perspective · advice":"Supportive response"}</span><p style="margin:.3em 0">${esc(c.body)}</p></div>`).join(""):"<p>No replies yet. You could be the first.</p>"}catch(e){o.querySelector("#cl").innerHTML="<p>Sign in to read and join the conversation.</p>"}};load();
-o.querySelector(".rx").onclick=async e=>{const b=e.target.closest("[data-r]");if(!b)return;try{await api(`/api/posts/${id}/react`,{method:"PUT",body:J({kind:b.dataset.r})});b.classList.add("on")}catch(x){need(x)}};
+const load=async()=>{try{const d=await api(`/api/posts/${id}/comments`);p.re=d.items.length;document.querySelectorAll(`.st[onclick="thread('${id}')"] .f span:last-child`).forEach(e=>e.textContent=`💬 ${p.re}`);o.querySelector("#cl").innerHTML=d.items.length?d.items.map(c=>`<div class="cm"><span class="tag">${c.kind==="advice"?"Peer perspective · advice":"Supportive response"}</span><p style="margin:.3em 0">${esc(c.body)}</p></div>`).join(""):"<p>No replies yet. You could be the first.</p>"}catch(e){o.querySelector("#cl").innerHTML="<p>Sign in to read and join the conversation.</p>"}};load();
+// Reactions and Save are toggles. Show the ones this user already sent, and don't let a double click race itself.
+const on=(b,v)=>{b.classList.toggle("on",v);b.setAttribute("aria-pressed",v)},sv=o.querySelector("#sv"),svl=v=>{on(sv,v);sv.textContent=v?"Saved":"Save"};
+if(me){api(`/api/posts/${id}/react`).then(d=>d.kinds.forEach(k=>{const b=o.querySelector(`[data-r="${k}"]`);if(b)on(b,true)})).catch(()=>{});api(`/api/posts/${id}/save`).then(d=>svl(d.saved)).catch(()=>{})}
+if(reply)o.querySelector("#rp").focus();
+o.querySelector(".rx").onclick=async e=>{const b=e.target.closest("[data-r]");if(!b||b.disabled)return;const was=b.classList.contains("on");b.disabled=true;try{await api(`/api/posts/${id}/react`+(was?`?kind=${b.dataset.r}`:""),was?{method:"DELETE"}:{method:"PUT",body:J({kind:b.dataset.r})});on(b,!was)}catch(x){need(x)}finally{b.disabled=false}};
+sv.onclick=async()=>{if(sv.disabled)return;const was=sv.classList.contains("on");sv.disabled=true;try{await api(`/api/posts/${id}/save`,{method:was?"DELETE":"PUT"});svl(!was);toast(was?"Removed from your saved stories":"Saved to your journey")}catch(x){need(x)}finally{sv.disabled=false}};
 o.querySelector("#rs").onclick=async()=>{const t=o.querySelector("#rp").value.trim();if(!t)return;try{const r=await api(`/api/posts/${id}/comments`,{method:"POST",body:J({body:t})});o.querySelector("#rp").value="";toast(r.status==="live"?"Reply posted":"Thanks. Your reply is being reviewed.");load()}catch(x){need(x)}};
 o.querySelector("#tp").onclick=async()=>{try{const r=await api("/api/requests",{method:"POST",body:J({postId:id})});toast(r.note||"Request sent")}catch(x){need(x)}};
 o.querySelector("#rr").onclick=async()=>{try{await api("/api/reports",{method:"POST",body:J({target:"post",targetId:id,reason:"Reported by a community member"})});toast("Reported. Thank you.")}catch(x){need(x)}}};

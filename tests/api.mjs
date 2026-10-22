@@ -40,7 +40,16 @@ ok((await A.r("POST", `/api/comments/${c1.j.id}/helpful`)).s === 200, "post auth
 ok((await B.r("GET", "/api/notifications")).j.items.some(n => n.kind === "helpful"), "replier is notified");
 ok((await B.r("PUT", `/api/posts/${p1.id}/react`, { kind: "love" })).s === 200, "supportive reaction");
 ok((await B.r("PUT", `/api/posts/${p1.id}/react`, { kind: "like" })).s === 400, "popularity-style reaction rejected");
+ok((await B.r("PUT", `/api/posts/${p1.id}/react`, { kind: "love" })).s === 200, "repeating a reaction is harmless");
+ok(JSON.stringify((await B.r("GET", `/api/posts/${p1.id}/react`)).j.kinds) === '["love"]', "user sees only their own reactions");
+ok((await A.r("GET", `/api/posts/${p1.id}/react`)).j.kinds.length === 0, "other users' reactions stay private");
+ok((await B.r("DELETE", `/api/posts/${p1.id}/react?kind=love`)).s === 200 && (await B.r("GET", `/api/posts/${p1.id}/react`)).j.kinds.length === 0, "reaction can be taken back");
+ok((await B.r("DELETE", `/api/posts/${p1.id}/react?kind=bogus`)).s === 400, "unknown reaction kind rejected on delete");
+ok((await B.r("PUT", `/api/posts/00000000-0000-0000-0000-000000000000/react`, { kind: "love" })).s === 404 && (await B.r("PUT", `/api/posts/not-a-uuid/react`, { kind: "love" })).s === 404, "reacting to a missing post is a 404");
 ok((await B.r("PUT", `/api/posts/${p1.id}/save`)).s === 200, "save a story");
+ok((await B.r("GET", `/api/posts/${p1.id}/save`)).j.saved === true, "saved state readable");
+ok((await B.r("DELETE", `/api/posts/${p1.id}/save`)).s === 200 && (await B.r("GET", `/api/posts/${p1.id}/save`)).j.saved === false, "story can be unsaved");
+ok((await B.r("PUT", `/api/posts/${p1.id}/save`)).s === 200, "save it again");
 ok((await B.r("POST", "/api/reports", { target: "post", targetId: p1.id, reason: "test report" })).s === 201, "report a post");
 
 // private connection + encrypted messages
