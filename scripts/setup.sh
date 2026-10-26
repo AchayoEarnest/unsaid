@@ -16,7 +16,7 @@ if [ "$(psql "$ADMIN" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB'")" != 
   psql "$ADMIN" -q -c "CREATE DATABASE \"$DB\"" && echo "Created database $DB."
 fi
 if [ "$(psql "$URL" -tAc "SELECT to_regclass('public.users')")" = "" ]; then
-  for f in db/schema.sql db/002_sessions.sql db/003_age_confirmed.sql db/004_extras.sql db/seed.sql; do
+  for f in db/schema.sql db/002_sessions.sql db/003_age_confirmed.sql db/004_extras.sql db/005_hardening.sql db/seed.sql; do
     echo "Loading $f"; psql "$URL" -v ON_ERROR_STOP=1 -q -f "$f"
   done
 else

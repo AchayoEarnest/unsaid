@@ -12,7 +12,7 @@ next-env.d.ts
 !.env.example
 
 # user uploads (stored on local disk in development)
-uploads/
+/uploads/
 
 # logs
 *.log

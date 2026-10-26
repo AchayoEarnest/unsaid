@@ -7,6 +7,7 @@ export async function POST(req: Request) {
   await q("UPDATE users SET sanction='none', sanction_until=NULL WHERE sanction<>'none' AND sanction_until IS NOT NULL AND sanction_until<now()");
   await q("DELETE FROM sessions WHERE expires_at<now()");
   await q("DELETE FROM auth_tokens WHERE expires_at<now()-interval '1 day'");
+  await q("DELETE FROM rate_limits WHERE reset_at<now()");
   let sent = 0;
   if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? "mailto:admin@example.com", process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);

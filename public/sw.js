@@ -1,5 +1,5 @@
 // Offline-friendly shell + push. API responses are never cached (private data).
-const SHELL = "unsaid-shell-v1", FILES = ["/", "/manifest.webmanifest"];
+const SHELL = "unsaid-shell-v2", FILES = ["/", "/manifest.webmanifest"];
 self.addEventListener("install", e => e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES))));
 self.addEventListener("activate", e => e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== SHELL).map(x => caches.delete(x))))));
 self.addEventListener("fetch", e => {

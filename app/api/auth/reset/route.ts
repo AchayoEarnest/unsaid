@@ -2,7 +2,7 @@ import { z } from "zod";
 import argon2 from "argon2";
 import { q } from "@/lib/db";
 import { sameOrigin } from "@/lib/session";
-import { limited } from "@/lib/rate";
+import { clientIp, limited } from "@/lib/rate";
 import { err } from "@/lib/http";
 import { makeToken, useToken } from "@/lib/tokens";
 import { sendMail } from "@/lib/mail";
@@ -11,8 +11,8 @@ import { sendMail } from "@/lib/mail";
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return err("Bad origin", 403);
   const p = z.object({ email: z.string().email() }).safeParse(await req.json().catch(() => null));
-  const ip = req.headers.get("x-forwarded-for") ?? "local";
-  if (limited(`reset:${ip}`, 5, 3600_000)) return err("Too many requests. Please try again later.", 429);
+  const ip = clientIp(req);
+  if (await limited(`reset:${ip}`, 5, 3600_000)) return err("Too many requests. Please try again later.", 429);
   if (p.success) {
     const [u] = await q<{ id: string }>("SELECT id FROM users WHERE email=lower($1) AND password_hash IS NOT NULL AND deleted_at IS NULL", [p.data.email]);
     if (u) await sendMail(p.data.email, "Reset your Unsaid password", `Reset link (valid for 1 hour): ${process.env.APP_ORIGIN}/app.html?reset=${await makeToken(u.id, "reset", 1)}`);

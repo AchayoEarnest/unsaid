@@ -8,7 +8,9 @@ export const GET = (req: Request, { params }: Ctx<{ id: string }>) => handler(re
   const { id } = await params;
   const rows = await q(`SELECT c.id,c.kind,c.body,c.created_at,(c.marked_helpful_at IS NOT NULL) AS helpful,
       CASE WHEN c.author_id=$2 THEN true ELSE false END AS mine
-    FROM comments c WHERE c.post_id=$1 AND c.deleted_at IS NULL AND c.mod_status='approved'
+    FROM comments c JOIN posts p ON p.id=c.post_id
+    WHERE c.post_id=$1 AND c.deleted_at IS NULL AND c.mod_status='approved'
+      AND p.deleted_at IS NULL AND ((p.visibility='public' AND p.mod_status='approved') OR p.author_id=$2)
       AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id=$2 AND b.blocked_id=c.author_id)
     ORDER BY c.created_at`, [id, me.id]);
   return Response.json({ items: rows }); // author ids are never returned
@@ -25,6 +27,7 @@ export const POST = (req: Request, { params }: Ctx<{ id: string }>) => handler(r
   }
   const [post] = await q<{ author_id: string; allow_comments: boolean; allow_advice: boolean }>(
     `SELECT author_id,allow_comments,allow_advice FROM posts p WHERE id=$1 AND deleted_at IS NULL AND mod_status='approved'
+     AND (visibility='public' OR author_id=$2)
      AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id=p.author_id AND b.blocked_id=$2)`, [id, me.id]);
   if (!post) return err("This conversation isn't available.", 404);
   if (!post.allow_comments || (p.data.kind === "advice" && !post.allow_advice)) return err("This person isn't taking replies of that kind right now.", 403);

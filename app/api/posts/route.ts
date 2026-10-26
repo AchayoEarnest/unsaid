@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   const me = await currentUser();
   if (!me) return Response.json({ error: "Please sign in." }, { status: 401 });
   if (["restriction","suspension"].includes(me.sanction)) return Response.json({ error: "Posting is paused on your account." }, { status: 403 });
-  if (limited(`post:${me.id}`, 10, 60 * 60_000)) return Response.json({ error: "You're posting quickly. Take a breath and try again soon." }, { status: 429 });
+  if (await limited(`post:${me.id}`, 10, 60 * 60_000)) return Response.json({ error: "You're posting quickly. Take a breath and try again soon." }, { status: 429 });
   const p = Body.safeParse(await req.json().catch(() => null));
   if (!p.success) return Response.json({ error: "Please check what you wrote.", fields: p.error.flatten().fieldErrors }, { status: 400 });
   const d = p.data;
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
       [me.id, d.identity, d.body, d.contentWarning ?? null, d.visibility, d.allowComments, d.allowAdvice, d.allowRequests, status]);
     if (status === "flagged") await c.query("INSERT INTO moderation_cases (target,target_id,severity) VALUES ('post',$1,2)", [r.rows[0].id]);
-    if (d.imageId) await c.query("UPDATE posts SET image_key=u.id::text FROM uploads u WHERE posts.id=$1 AND u.id=$2 AND u.user_id=$3", [r.rows[0].id, d.imageId, me.id]);
+    if (d.imageId) await c.query("UPDATE posts SET image_key=u.id::text FROM uploads u WHERE posts.id=$1 AND u.id=$2 AND u.user_id=$3 AND u.status<>'removed'", [r.rows[0].id, d.imageId, me.id]);
     if (d.moods.length) await c.query("INSERT INTO post_moods SELECT $1, id FROM moods WHERE slug = ANY($2)", [r.rows[0].id, d.moods]);
     // Alert stores only a pointer, never the text.
     if (risk === "crisis") await c.query("INSERT INTO safety_alerts (user_id,source) VALUES ($1,$2)", [me.id, `post:${r.rows[0].id}`]);

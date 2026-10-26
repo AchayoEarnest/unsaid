@@ -25,8 +25,9 @@ npm run smoke            # quick curl check of the API
 ```
 
 - `test:api` and `test:ui` are plain scripts, not a test framework. They need `npm run dev` running and a loaded database (`test:api` also needs `npm run ws`). They read `.env` themselves, create real users, and print `ok`/`FAIL` lines.
-- `test:ui` is timing-sensitive and sometimes fails a different check on each run. Run it again before treating a failure as a regression.
-- Signup is rate limited to 5 per hour per IP, and the limiter is in memory (`lib/rate.ts`). Restart `npm run dev` between `test:api` runs.
+- `test:ui` waits on conditions (`until(...)`) rather than fixed delays. Keep it that way when adding checks: fixed `wait()`s were the source of its old flakiness.
+- Rate limits live in Postgres (`rate_limits` table, `lib/rate.ts`), so they survive restarts and hold across instances. Signup is 5 per hour per IP; `test:api` and `test:ui` clear the table at start, so run them back to back freely. Clear it by hand (`DELETE FROM rate_limits`) if you hit 429s while clicking around.
+- Client IPs come from the last `X-Forwarded-For` entry (`clientIp()`), which assumes a proxy in front that appends it. Without one, every client shares the key `local`.
 - Don't run `npm run build` while `npm run dev` is running from the same checkout. Both write to `.next` and corrupt it.
 
 ## Architecture
@@ -47,10 +48,16 @@ The override pattern is `const wall0 = wall; wall = async function () { … api 
 - Minors and adults can't open private chats. This is checked in code (`lib/safety.ts`) and by a database trigger.
 - Messages and journal entries are AES-256-GCM encrypted via `seal`/`open` in `lib/crypto.ts`.
 
+**Moderator tooling:** `GET /api/mod/cases/[id]` gives the case subject's history under a pseudonym (`handle()` in `lib/modcase.ts`, an HMAC of the user id), never the raw id. `POST /api/mod/cases/[id]/reveal` decrypts a *reported* conversation for staff: it needs a written reason, only shows messages sent before the report, and writes the reason to the audit log. `SUBJECT` in `lib/modcase.ts` decides who a case is about. For conversations, that's the member who didn't report.
+
+**Age group is locked once confirmed.** `PATCH /api/me` only applies `isMinor` while `age_confirmed` is false (Google sign-ups before onboarding), and silently ignores it after that. Don't loosen this, because it's what stops someone switching groups to get around the teen protections.
+
 **Moderation and safety:** `lib/moderation.ts` (`screen()` → approved/flagged) and `lib/safety.ts` (`assessRisk`, `isHarmfulReply`) are keyword heuristics. Flagged content inserts into `moderation_cases`, and staff actions are written to an append-only audit log (`lib/audit.ts`).
 
 **Realtime:** `server/ws.ts` authenticates the same `sid` session cookie, checks the WebSocket origin against `APP_ORIGIN`, and fans out events through Postgres `LISTEN/NOTIFY`, so it scales across instances.
 
-**Database:** schema changes are numbered SQL files in `db/` (`schema.sql`, then `002_…`, `003_…`, `004_extras.sql`, then `seed.sql`). There is no migration tool. The file list is hardcoded in both `scripts/db-init.sh` and `scripts/setup.sh`, so add new files to both. Note that `docker-compose.yml` mounts `db/` as the Postgres init directory, which runs files alphabetically, so the numbered files run before `schema.sql`.
+**Database:** schema changes are numbered SQL files in `db/` (`schema.sql`, then `002_…` through `005_hardening.sql`, then `seed.sql`). There is no migration tool. The file list is hardcoded in both `scripts/db-init.sh` and `scripts/setup.sh`, so add new files to both. Note that `docker-compose.yml` mounts `db/` as the Postgres init directory, which runs files alphabetically, so the numbered files run before `schema.sql`.
 
-**Ops:** `POST /api/cron` with `Authorization: Bearer $CRON_SECRET` lifts expired sanctions, prunes sessions and tokens, and sends pushes. Without `RESEND_API_KEY`, emails are printed to the server log. Uploads go to local disk (`uploads/`) and are only visible after a moderator approves them.
+**Ops:** `POST /api/cron` with `Authorization: Bearer $CRON_SECRET` lifts expired sanctions, prunes sessions, tokens and rate-limit rows, and sends pushes. `lib/db.ts` creates the pool lazily, so `next build` works without `DATABASE_URL` (Vercel collects page data by importing every route). Without `RESEND_API_KEY`, emails are printed to the server log. Uploads go to local disk (`uploads/`) and are only visible after a moderator approves them.
+
+**Brand:** `node brand/make-icons.mjs` regenerates every logo file (`public/logo.svg`, `favicon.svg`, the PWA PNGs, `apple-touch-icon.png`, `brand/logo-1024.png`) from one bubble path. The header mark in `app.html` is the same path inlined so it can use the theme's CSS variables.

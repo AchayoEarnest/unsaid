@@ -13,8 +13,8 @@ Verified here against PostgreSQL 16, a running Next.js dev server and the realti
 - `npm run build`: production build succeeds (don't run this alongside a live `npm run dev` against the
   same checkout — they both write to `.next` and will corrupt each other's build output; use separate
   checkouts/worktrees, or stop `dev` first).
-- `npm run test:api`: 64 checks pass (privacy, moderation, teen protection, encryption, realtime, uploads, deletion).
-- `npm run test:ui`: 24 checks pass, repeatedly, against the real UI loaded in a simulated browser (wall,
+- `npm run test:api`: 86 checks pass (privacy, moderation, case history and audited reveal, teen protection and the age-group lock, encryption, realtime, uploads, deletion).
+- `npm run test:ui`: 25 checks pass, repeatedly, against the real UI loaded in a simulated browser (wall,
   threads, every screen, posting, journal, check-in, notifications, help). Two real bugs found and fixed
   while verifying this: the home wall and reaction picker could render stale sample data on a slow
   connection (api.js now renders the real wall as soon as it loads, instead of trusting a hardcoded
@@ -65,6 +65,6 @@ If you see `database "<your name>" does not exist`, there is no `.env` yet: run 
 1. **Run and fix.** None of the API, SQL or UI wiring has been run end to end. Install, `npx tsc --noEmit`, `npm run db:init`, then click through every screen.
 2. Replace the keyword checks in `lib/safety.ts` and `lib/moderation.ts` with a real classifier plus trained human review.
 3. Rebuild the UI as native React/shadcn components if you want that stack; the current UI is the prototype page connected by scripts.
-4. Move rate limiting to Redis, tighten the CSP (remove inline scripts), and get a security and child-safety review.
+4. Tighten the CSP: `script-src` still needs `'unsafe-inline'` because `app.html` uses ~60 inline `onclick` handlers (and api.js/api2.js render more). Removing them is part of the React rebuild in item 3. Rate limiting now lives in Postgres, so it already works across instances. Get a security and child-safety review.
 5. Verify every help-line number in `db/seed.sql` with its provider.
-6. Add moderator tooling you'll want in practice: user history view and a reviewed process for reading a reported conversation.
+6. Moderator tooling: a pseudonymous history view and an audited, reason-required flow for reading a reported conversation are in. Still worth adding: a second-person sign-off for reveals, and handling for safety alerts (they're counted but there's no screen to work through them).

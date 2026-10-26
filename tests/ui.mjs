@@ -7,6 +7,7 @@ let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log(
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const until = async (f, ms = 6000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (f()) return true; await wait(150); } return f(); };
 // sign up a user to browse as, and make them staff so the admin screens can load
+await db.query("DELETE FROM rate_limits"); // signup is limited per IP, and the limiter lives in the database
 const email = `ui${Date.now()}@example.com`; let cookie = "";
 const su = await fetch(BASE + "/api/auth/signup", { method: "POST", headers: { Origin: BASE, "Content-Type": "application/json" }, body: JSON.stringify({ email, password: "correct-horse-9", nickname: "UiTester", isMinor: false }) });
 cookie = su.headers.getSetCookie()[0].split(";")[0]; ok(su.status === 201, "test user signed up");
@@ -18,11 +19,12 @@ const dom = await JSDOM.fromURL(BASE + "/app.html", { runScripts: "dangerously",
   w.addEventListener("error", e => errs.push(e.message + " @ " + String((e.error && e.error.stack) || "").split("\n").slice(0, 3).join(" | "))); w.localStorage.setItem("unsaid_onboarded", "1"); } });
 const w = dom.window, d = w.document, $ = s => d.querySelector(s), ev = c => w.eval(c), txt = () => $("#app").textContent;
 const md = () => [...d.querySelectorAll(".md")].pop(), closeTop = () => [...d.querySelectorAll("[data-x]")].pop()?.click();
-await wait(3000);
+// wait for the real wall and the signed-in header rather than a fixed delay (the wall can take ~1s on a cold dev server)
+await until(() => ev("Object.keys(st.api||{}).length") > 0 && !!$("#today .st") && $("#authbtn")?.textContent === "Sign out", 15000);
 ok(txt().includes("Sometimes you don’t need answers"), "home page renders");
 ok(d.querySelectorAll(".st").length > 0 && ev("Object.keys(st.api||{}).length") > 0, "wall shows real posts from the API");
 ok(!!$("#today .st") && ev("!!st.hero") && $("#today .st").getAttribute("onclick").includes(ev("st.hero.id")) && $("#today .st .f").textContent.includes(`💬 ${ev("st.hero.re")}`), "today card shows a real post and reply count");
-$("#wall .st").click(); await wait(1200);
+$("#wall .st").click(); await until(() => md()?.querySelectorAll("[data-r]").length === 6, 8000);
 ok(!!md() && md().textContent.includes("Responses"), "clicking a sticker opens its thread");
 ok(md() && md().querySelectorAll("[data-r]").length === 6, "six supportive reactions shown");
 closeTop();
@@ -36,15 +38,17 @@ ok(await until(() => /Posts today/.test(txt())), "admin overview shows live stat
 w.go("admin"); w.atab("q"); ok(await until(() => /Queue is clear|Severity/.test(txt())), "admin review queue loads");
 w.go("admin"); w.atab("log"); ok(await until(() => txt().includes("can’t be edited")), "admin audit log loads");
 // journal save through the UI
-w.go("journal"); await until(() => $("#je")); $("#je").value = "Wrote this from the UI test"; $('[data-j="save"]').click(); await wait(1500);
-ok(txt().includes("Wrote this from the UI test"), "journal entry saved and listed");
+w.go("journal"); await until(() => $("#je")); $("#je").value = "Wrote this from the UI test"; $('[data-j="save"]').click();
+ok(await until(() => txt().includes("Wrote this from the UI test"), 8000), "journal entry saved and listed");
 // posting through the share form (unique body per run so reruns against the same database don't collide)
 const shareBody = `Posting from the UI test ${Date.now()}, feeling hopeful.`;
-w.share(); $("#tx").value = shareBody; $('#mo [data-k="Hopeful"]').click(); $("#go").click(); await wait(200); $("#y").click(); await until(() => false, 2000);
-const posted = (await db.query("SELECT count(*) FROM posts WHERE body=$1", [shareBody])).rows[0].count; ok(posted === "1", "share form saves a post to the database");
+w.share(); $("#tx").value = shareBody; $('#mo [data-k="Hopeful"]').click(); $("#go").click(); await wait(200); $("#y").click();
+let posted = "0"; for (const t0 = Date.now(); Date.now() - t0 < 6000 && (posted = (await db.query("SELECT count(*) FROM posts WHERE body=$1", [shareBody])).rows[0].count) !== "1";) await wait(200); ok(posted === "1", "share form saves a post to the database");
 // check-in saves to the journal
-w.checkin(); $('[data-k="Anxious"]').click(); await wait(300); $("#cj").click(); await wait(1200);
-ok(+(await db.query("SELECT count(*) FROM journal_entries WHERE user_id=(SELECT id FROM users WHERE email=$1)", [email])).rows[0].count >= 2, "check-in saves to the private journal");
+w.checkin(); $('[data-k="Anxious"]').click(); await wait(300); $("#cj").click();
+const journalCount = async () => +(await db.query("SELECT count(*) FROM journal_entries WHERE user_id=(SELECT id FROM users WHERE email=$1)", [email])).rows[0].count;
+let entries = 0; for (const t0 = Date.now(); Date.now() - t0 < 6000 && (entries = await journalCount()) < 2;) await wait(200);
+ok(entries >= 2, "check-in saves to the private journal");
 // notifications and auth modal
 await w.notif(); await wait(800); ok(!!md() && md().textContent.includes("Notifications"), "notifications panel opens"); closeTop();
 w.authModal(); ok(!!$("#fp"), "sign-in dialog offers forgot password"); closeTop();

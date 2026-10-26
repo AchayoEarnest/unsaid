@@ -1,5 +1,5 @@
 // End-to-end API test. Needs the dev server (npm run dev), the realtime server (npm run ws) and a loaded database.
-// Run: npm run test:api   (restart `npm run dev` between runs: signup is rate limited to 5 per hour per IP)
+// Run: npm run test:api   (it clears the shared rate_limits table first, since signup is limited to 5 per hour per IP)
 import fs from "fs";
 import pg from "pg";
 import WebSocket from "ws";
@@ -13,6 +13,7 @@ class C { c = ""; async r(method, path, body, noOrigin) {
   for (const x of res.headers.getSetCookie?.() ?? []) { const kv = x.split(";")[0]; this.c = kv.endsWith("=") ? "" : kv; }
   const t = await res.text(); let j = null; try { j = JSON.parse(t); } catch {} return { s: res.status, j, t, res };
 } }
+await db.query("DELETE FROM rate_limits");
 const run = Date.now(), pw = "correct-horse-9";
 const mk = async (n, minor) => { const c = new C(); const r = await c.r("POST", "/api/auth/signup", { email: `${n}${run}@example.com`, password: pw, nickname: n, isMinor: minor }); ok(r.s === 201, `sign up ${n}${minor ? " (under 18)" : ""}`); c.email = `${n}${run}@example.com`; return c; };
 const A = await mk("Alice", false), B = await mk("Brian", false), T1 = await mk("Teen1", true), T2 = await mk("Teen2", true), D = await mk("Dora", false);
@@ -38,6 +39,10 @@ ok(cl.j.items.length === 1 && !cl.t.includes("author_id"), "replies listed witho
 ok((await B.r("POST", `/api/comments/${c1.j.id}/helpful`)).s === 403, "only the post author can mark helpful");
 ok((await A.r("POST", `/api/comments/${c1.j.id}/helpful`)).s === 200, "post author marks reply helpful");
 ok((await B.r("GET", "/api/notifications")).j.items.some(n => n.kind === "helpful"), "replier is notified");
+ok((await A.r("POST", `/api/comments/${c1.j.id}/helpful`)).s === 200 && (await B.r("GET", "/api/notifications")).j.items.filter(n => n.kind === "helpful").length === 1, "marking helpful twice notifies once");
+ok((await A.r("POST", "/api/comments/not-a-uuid/helpful")).s === 404, "malformed id is a 404, not a server error");
+const priv = (await A.r("POST", "/api/posts", { body: "Just for me.", visibility: "private" })).j;
+ok((await B.r("POST", `/api/posts/${priv.id}/comments`, { body: "hi" })).s === 404 && (await B.r("GET", `/api/posts/${priv.id}/comments`)).j.items.length === 0, "private posts can't be replied to or read by others");
 ok((await B.r("PUT", `/api/posts/${p1.id}/react`, { kind: "love" })).s === 200, "supportive reaction");
 ok((await B.r("PUT", `/api/posts/${p1.id}/react`, { kind: "like" })).s === 400, "popularity-style reaction rejected");
 ok((await B.r("PUT", `/api/posts/${p1.id}/react`, { kind: "love" })).s === 200, "repeating a reaction is harmless");
@@ -54,6 +59,8 @@ ok((await B.r("POST", "/api/reports", { target: "post", targetId: p1.id, reason:
 
 // private connection + encrypted messages
 ok((await B.r("POST", "/api/requests", { postId: p1.id })).s === 202, "private request sent (neutral reply)");
+await B.r("POST", "/api/requests", { postId: p1.id });
+ok((await db.query("SELECT count(*) FROM notifications WHERE user_id=$1 AND kind='request'", [await uid(A)])).rows[0].count === "1", "repeating a request doesn't notify again");
 const rq = await A.r("GET", "/api/requests");
 ok(rq.j.items.length === 1 && !rq.t.includes("from_user"), "recipient sees request without requester identity");
 const acc = await A.r("PATCH", `/api/requests/${rq.j.items[0].id}`, { action: "accept" });
@@ -83,6 +90,11 @@ await T1.r("POST", "/api/requests", { postId: p1.id });
 ok((await A.r("GET", "/api/requests")).j.items.length === 0, "teen request to an adult is silently blocked");
 await T2.r("PATCH", "/api/me", { allowRequests: true });
 ok((await db.query("SELECT allow_requests FROM profiles WHERE user_id=$1", [await uid(T2)])).rows[0].allow_requests === false, "teen cannot switch private requests on");
+await T2.r("PATCH", "/api/me", { isMinor: false });
+ok((await db.query("SELECT is_minor FROM users WHERE id=$1", [await uid(T2)])).rows[0].is_minor === true, "teen cannot switch their account to adult");
+
+// reported conversation: audited reveal by moderators
+ok((await A.r("POST", "/api/reports", { target: "conversation", targetId: cv, reason: "Reported by a participant" })).s === 201, "participant reports the conversation");
 
 // blocking
 ok((await A.r("POST", `/api/conversations/${cv}/block`)).s === 200, "block from a conversation");
@@ -98,6 +110,16 @@ ok((await A.r("POST", `/api/mod/cases/${fl.id}`, { action: "remove" })).s === 20
 ok((await db.query("SELECT mod_status FROM posts WHERE id=$1", [bad.id])).rows[0].mod_status === "removed", "removed post is marked removed");
 const rep = q.j.items.find(i => i.target_id === p1.id && i.reason === "test report");
 ok((await A.r("POST", `/api/mod/cases/${rep.id}`, { action: "dismiss" })).s === 200, "moderator dismisses a report");
+const rc = (await A.r("GET", "/api/mod/queue?severity=3")).j.items.find(i => i.target_id === cv);
+ok(!!rc && !JSON.stringify(rc).includes("secret words"), "reported conversation is queued without message text");
+const hist = await A.r("GET", `/api/mod/cases/${rc.id}`);
+ok(hist.s === 200 && /^U-[0-9A-F]{8}$/.test(hist.j.subject.handle) && hist.j.canReveal && !hist.t.includes(await uid(B)), "case history names the reported person by pseudonym only");
+ok((await A.r("POST", `/api/mod/cases/${rc.id}/reveal`, { reason: "short" })).s === 400, "reveal needs a written reason");
+ok((await B.r("POST", `/api/mod/cases/${rc.id}/reveal`, { reason: "checking this report carefully" })).s === 403, "non-staff cannot reveal");
+const rv = await A.r("POST", `/api/mod/cases/${rc.id}/reveal`, { reason: "checking this report carefully" });
+ok(rv.s === 200 && rv.j.items.some(m => m.body === "hello there, secret words" && m.from === "Reported person"), "moderator reads the reported conversation");
+ok((await db.query("SELECT meta->>'reason' AS r FROM audit_log WHERE action='case.reveal' AND target=$1", [rc.id])).rows[0]?.r === "checking this report carefully", "reveal is audited with its reason");
+ok((await A.r("POST", `/api/mod/cases/${rc.id}`, { action: "warn" })).s === 200 && (await db.query("SELECT sanction FROM users WHERE id=$1", [await uid(B)])).rows[0].sanction === "warning", "warning a reported conversation sanctions the other member");
 ok(+(await db.query("SELECT count(*) FROM audit_log WHERE action LIKE 'case.%'")).rows[0].count >= 2, "actions written to the audit log");
 ok((await A.r("GET", "/api/admin/stats")).s === 200 && (await B.r("GET", "/api/admin/stats")).s === 403, "admin stats are admin-only");
 ok((await A.r("GET", "/api/admin/audit")).j.items.length >= 2, "audit log readable by admins");

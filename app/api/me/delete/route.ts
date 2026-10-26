@@ -18,6 +18,8 @@ export const POST = (req: Request) => handler(req, async me => {
     await c.query("UPDATE comments SET deleted_at=now() WHERE author_id=$1", [me.id]);
     await c.query("UPDATE messages SET deleted_at=now() WHERE sender_id=$1", [me.id]);
     await c.query("DELETE FROM journal_entries WHERE user_id=$1", [me.id]);
+    await c.query("UPDATE connection_requests SET status='expired' WHERE (from_user=$1 OR to_user=$1) AND status='pending'", [me.id]);
+    await c.query("UPDATE conversations SET deleted_at=now() WHERE deleted_at IS NULL AND id IN (SELECT conversation_id FROM conversation_members WHERE user_id=$1)", [me.id]);
     await c.query("DELETE FROM sessions WHERE user_id=$1", [me.id]);
     await c.query("DELETE FROM push_subscriptions WHERE user_id=$1", [me.id]);
     await c.query("COMMIT");

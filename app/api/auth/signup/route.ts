@@ -2,7 +2,7 @@ import { z } from "zod";
 import argon2 from "argon2";
 import { pool } from "@/lib/db";
 import { createSession, sameOrigin } from "@/lib/session";
-import { limited } from "@/lib/rate";
+import { clientIp, limited } from "@/lib/rate";
 
 const Body = z.object({
   email: z.string().email().max(254),
@@ -14,8 +14,8 @@ const Body = z.object({
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return Response.json({ error: "Bad origin" }, { status: 403 });
-  const ip = req.headers.get("x-forwarded-for") ?? "local";
-  if (limited(`signup:${ip}`, 5, 60 * 60_000)) return Response.json({ error: "Too many attempts. Please try again later." }, { status: 429 });
+  const ip = clientIp(req);
+  if (await limited(`signup:${ip}`, 5, 60 * 60_000)) return Response.json({ error: "Too many attempts. Please try again later." }, { status: 429 });
   const p = Body.safeParse(await req.json().catch(() => null));
   if (!p.success) return Response.json({ error: "Please check your details.", fields: p.error.flatten().fieldErrors }, { status: 400 });
   const { email, password, nickname, isMinor, countryCode } = p.data;
